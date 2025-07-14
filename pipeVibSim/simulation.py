@@ -1,7 +1,10 @@
-import sdynpy as sdpy
 import numpy as np
-from .pipe import Pipe
+
+import sdynpy as sdpy
+
 from .materials import get_material_properties
+from .pipe import Pipe
+
 
 class VibrationAnalysis:
     """
@@ -11,19 +14,39 @@ class VibrationAnalysis:
         pipe (Pipe): 解析対象のPipeオブジェクト。
         material_properties (dict): 材料特性の辞書。
     """
+
     def __init__(self, pipe, material_properties):
         self.pipe = pipe
         self.material_properties = material_properties
-        self.system, self.geometry = self._setup_system()
+        self.init_system, self.geometry = self._setup_system()
+        self.system = self.init_system
 
     def _setup_system(self):
         """sdynpyシステムをセットアップします。"""
-        return sdpy.System.beam_from_arrays(
-            self.pipe.node_positions,
-            self.pipe.node_connectivity,
-            self.pipe.bend_direction,
-            self.material_properties
-        )
+        return sdpy.System.beam_from_arrays(self.pipe.node_positions, self.pipe.node_connectivity,
+                                            self.pipe.bend_direction, self.material_properties)
+
+    def reset_system(self):
+        """システムを初期状態に戻します。"""
+        self.system = self.init_system
+
+    def substructure_by_coordinate(self, constraints):
+        """
+        座標に基づいて部分構造を作成し、self.systemを更新します。
+
+        Args:
+            constraints (list): 拘束条件のリスト。各要素は (coordinates, fixed_dofs) のタプル。
+                                coordinatesは拘束する節点の座標、fixed_dofsは拘束する自由度。
+        """
+        fixed_dofs_list = []
+        for coords, fixed_dof_indices in constraints:
+            node_index = np.argmin(np.linalg.norm(self.pipe.node_positions - coords, axis=1))
+            fixed_dofs = self.system.coordinate[node_index * 6:node_index * 6 + 6]
+            if fixed_dof_indices is not None:
+                fixed_dofs = fixed_dofs[fixed_dof_indices]
+            fixed_dofs_list.append((fixed_dofs, None))
+
+        self.system = self.system.substructure_by_coordinate(fixed_dofs_list)
 
     def run_eigensolution(self, maximum_frequency):
         """
@@ -51,11 +74,7 @@ class VibrationAnalysis:
         """
         load_dof = self.system.coordinate[load_dof_indices]
         response_dof = self.system.coordinate[response_dof_indices]
-        fixed_dofs = self.system.coordinate[:6]
-        constrained_system = self.system.substructure_by_coordinate([(fixed_dofs, None)])
-        return constrained_system.frequency_response(
-            frequencies=frequencies,
-            references=load_dof,
-            responses=response_dof,
-            displacement_derivative=2
-        )
+        return self.system.frequency_response(frequencies=frequencies,
+                                              references=load_dof,
+                                              responses=response_dof,
+                                              displacement_derivative=2)
