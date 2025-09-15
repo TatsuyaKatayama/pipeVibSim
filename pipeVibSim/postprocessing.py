@@ -2,27 +2,36 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_node_path(node_positions, points):
+def plot_node_path(node_positions, points=None, fig=None, ax=None, color='b'):
     """
     ノードパスと元の座標点をプロットします。
 
     Args:
         node_positions (np.ndarray): プロットするノードの座標。
-        points (np.ndarray): 元の座標点。
+        points (np.ndarray, optional): 元の座標点。 Defaults to None.
+        fig (matplotlib.figure.Figure, optional): プロットするFigureオブジェクト。Noneの場合、新しいFigureを作成します。 Defaults to None.
+        ax (matplotlib.axes.Axes, optional): プロットするAxesオブジェクト。Noneの場合、新しいAxesを作成します。 Defaults to None.
+        color (str, optional): プロットの色。 Defaults to 'b'.
+
+    Returns:
+        tuple: (fig, ax) FigureオブジェクトとAxesオブジェクト。
     """
-    fig = plt.figure(figsize=(8, 6))
-    ax = fig.add_subplot(111, projection='3d')
+    if fig is None or ax is None:
+        fig = plt.figure(figsize=(8, 6))
+        ax = fig.add_subplot(111, projection='3d')
+
     ax.plot(node_positions[:, 0],
             node_positions[:, 1],
             node_positions[:, 2],
             label='node_positions',
-            color='b')
-    ax.scatter(points[:, 0], points[:, 1], points[:, 2], color='r', s=50, label='Points')
+            color=color)
+    if points is not None:
+        ax.scatter(points[:, 0], points[:, 1], points[:, 2], color=color, s=50, label='Points')
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
     ax.legend()
-    plt.show()
+    return fig, ax
 
 
 def plot_mode_shapes(geometry, shapes):
