@@ -3,7 +3,7 @@ import numpy as np
 import sdynpy as sdpy
 
 from .materials import get_material_properties
-from .pipe import Pipe
+from .pipe_path import PipePath
 
 
 class VibrationAnalysis:
@@ -11,20 +11,20 @@ class VibrationAnalysis:
     配管の振動解析を実行するクラス。
 
     Args:
-        pipe (Pipe): 解析対象のPipeオブジェクト。
+        pipe_path (PipePath): 解析対象のPipePathオブジェクト。
         material_properties (dict): 材料特性の辞書。
     """
 
-    def __init__(self, pipe, material_properties):
-        self.pipe = pipe
+    def __init__(self, pipe_path, material_properties):
+        self.pipe_path = pipe_path
         self.material_properties = material_properties
         self.init_system, self.geometry = self._setup_system()
         self.system = self.init_system
 
     def _setup_system(self):
         """sdynpyシステムをセットアップします。"""
-        return sdpy.System.beam_from_arrays(self.pipe.node_positions, self.pipe.node_connectivity,
-                                            self.pipe.bend_direction, self.material_properties)
+        return sdpy.System.beam_from_arrays(self.pipe_path.node_positions, self.pipe_path.node_connectivity,
+                                            self.pipe_path.bend_direction, self.material_properties)
 
     def reset_system(self):
         """システムを初期状態に戻します。"""
@@ -40,7 +40,7 @@ class VibrationAnalysis:
         """
         fixed_dofs_list = []
         for coords, fixed_dof_indices in constraints:
-            node_index = np.argmin(np.linalg.norm(self.pipe.node_positions - coords, axis=1))
+            node_index = np.argmin(np.linalg.norm(self.pipe_path.node_positions - coords, axis=1))
             fixed_dofs = self.system.coordinate[node_index * 6:node_index * 6 + 6]
             if fixed_dof_indices is not None:
                 fixed_dofs = fixed_dofs[fixed_dof_indices]

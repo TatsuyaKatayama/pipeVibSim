@@ -26,7 +26,7 @@ pip install .
 
 ```python
 import numpy as np
-from pipeVibSim.pipe import Pipe
+from pipeVibSim.pipe_path import PipePath
 from pipeVibSim.materials import get_material_properties
 from pipeVibSim.simulation import VibrationAnalysis
 import pipeVibSim.postprocessing as post
@@ -41,7 +41,7 @@ points = np.array([
 ], dtype=float) * 0.1
 
 # 配管オブジェクトの作成
-pipe = Pipe(points, radius=0.03, step=0.01)
+pipe_path = PipePath(points, radius=0.03, step=0.01)
 
 # 2. 材料特性の設定
 material_properties = get_material_properties(
@@ -50,12 +50,12 @@ material_properties = get_material_properties(
     nu=0.34,        # ポアソン比
     D_out=0.01,     # 外径 (m)
     D_in=0.008,     # 内径 (m)
-    n_elements=pipe.node_positions.shape[0] - 1
+    n_elements=pipe_path.node_positions.shape[0] - 1
 )
 
 # 3. 解析の実行
 # 解析オブジェクトの作成
-analysis = VibrationAnalysis(pipe, material_properties)
+analysis = VibrationAnalysis(pipe_path, material_properties)
 
 # 固有値解析
 shapes = analysis.run_eigensolution(maximum_frequency=4000)

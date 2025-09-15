@@ -1,6 +1,6 @@
 import numpy as np
 
-class Pipe:
+class PipePath:
     """
     配管の形状を定義し、計算に必要なジオメトリ情報を生成するクラス。
 
