@@ -67,15 +67,19 @@ class VibrationAnalysis:
         """
         return self.system.eigensolution(maximum_frequency=maximum_frequency)
 
-    def run_frf(self, frequencies, load_dof_indices, response_dof_indices):
+    def run_frf(self,
+                frequencies,
+                load_dof_indices,
+                response_dof_indices=slice(None),
+                displacement_derivative=0):
         """
         周波数応答解析（FRF）を実行します。
 
         Args:
             frequencies (np.ndarray): 解析する周波数の配列。
             load_dof_indices (int or list): 荷重をかける自由度のインデックス。
-            response_dof_indices (int or list): 応答を観測する自由度のインデックス。
-
+            response_dof_indices (int, list, or slice, optional): 応答を観測する自由度のインデックス。デフォルトは全自由度。
+            displacement_derivative (int, optional): 変位の導関数の次数。デフォルトは0は変位。1は速度、2は加速度。
         Returns:
             frf: sdynpyの周波数応答解析結果。
         """
@@ -84,4 +88,4 @@ class VibrationAnalysis:
         return self.system.frequency_response(frequencies=frequencies,
                                               references=load_dof,
                                               responses=response_dof,
-                                              displacement_derivative=2)
+                                              displacement_derivative=displacement_derivative)

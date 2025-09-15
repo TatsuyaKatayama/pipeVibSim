@@ -36,6 +36,17 @@ def plot_mode_shapes(geometry, shapes):
     geometry.plot_shape(shapes)
 
 
+def plot_deflection_shape(geometry, frf):
+    """
+    FRFの変形形状をプロットします。
+
+    Args:
+        geometry: sdynpyのジオメトリオブジェクト。
+        frf: sdynpyの周波数応答解析結果。
+    """
+    geometry.plot_deflection_shape(frf)
+
+
 def plot_frf(frf, fig=None, axes=None):
     """
     周波数応答関数（FRF）をプロットします。
