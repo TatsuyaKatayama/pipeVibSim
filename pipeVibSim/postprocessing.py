@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from qtpy.QtWidgets import QApplication
+from sdynpy.core.sdynpy_geometries import MultipleShapePlotter, MultipleDeflectionShapePlotter
 
 
 def plot_node_path(node_positions, points=None, fig=None, ax=None, color='b'):
@@ -171,3 +173,43 @@ def plot_pipe_geometry(pipe, fig=None, ax=None, cmap_name='Greys'):
         ax.legend()
 
     return fig, ax
+
+def plot_multiple_mode_shapes(geometries, shapes_list, **kwargs):
+    """
+    複数のジオメトリにモード形状をインタラクティブにプロットします。
+    
+    sdynpyのMultipleShapePlotterを呼び出します。
+    GUIウィンドウが立ち上がり、操作がブロックされる可能性があります。
+
+    Args:
+        geometries (list): sdynpyのGeometryオブジェクトのリスト。
+        shapes_list (list): sdynpyのShapeArrayオブジェクトのリスト。
+        **kwargs: MultipleShapePlotterに渡される追加のキーワード引数。
+    """
+    # QApplicationのインスタンスが存在するか確認し、なければ作成
+    if QApplication.instance() is None:
+        QApplication([])
+        
+    plotter = MultipleShapePlotter(geometries, shapes_list, **kwargs)
+    plotter.show()
+    return plotter
+
+def plot_multiple_deflection_shapes(geometries, deflection_shape_data_list, **kwargs):
+    """
+    複数のジオメトリにたわみ形状をインタラクティブにプロットします。
+    
+    sdynpyのMultipleDeflectionShapePlotterを呼び出します。
+    GUIウィンドウが立ち上がり、操作がブロックされる可能性があります。
+
+    Args:
+        geometries (list): sdynpyのGeometryオブジェクトのリスト。
+        deflection_shape_data_list (list): NDDataArrayオブジェクトのリスト。
+        **kwargs: MultipleDeflectionShapePlotterに渡される追加のキーワード引数。
+    """
+    # QApplicationのインスタンスが存在するか確認し、なければ作成
+    if QApplication.instance() is None:
+        QApplication([])
+        
+    plotter = MultipleDeflectionShapePlotter(geometries, deflection_shape_data_list, **kwargs)
+    plotter.show()
+    return plotter
