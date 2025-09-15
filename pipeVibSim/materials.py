@@ -39,4 +39,9 @@ def get_material_properties(E, rho, nu, D_out, D_in, n_elements):
         mat_prop = {}
         for k in mat_prop_list[0].keys():
             mat_prop[k] = np.array([mp[k] for mp in mat_prop_list]).flatten()
+    mat_prop['E'] = E
+    mat_prop['rho'] = rho
+    mat_prop['nu'] = nu
+    mat_prop['D_out'] = D_out
+    mat_prop['D_in'] = D_in
     return {k: v for k, v in mat_prop.items() if k not in ['dD_outer', 'dD_inner']}
