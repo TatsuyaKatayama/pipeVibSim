@@ -117,3 +117,29 @@ def test_u_bend_diagonal():
     center_point = p_curr + 0.5 * center_dir
     distances = np.linalg.norm(path.node_positions - center_point, axis=1)
     assert np.min(distances) <= 0.5 + 1e-6
+
+def test_curvatures():
+    points = np.array([
+        [0, 0, 0],
+        [1, 0, 0],
+        [1, 1, 0], # 90度曲げ
+    ], dtype=float)
+    radius = 0.1
+    path = PipePath(points, radius=radius, step=0.1)
+
+    # 総要素数と曲率配列の長さが一致することを確認
+    assert path.node_connectivity.shape[0] == len(path.curvatures)
+
+    # 曲げ部の曲率が 1/radius になっていることを確認
+    expected_curvature = 1.0 / radius
+    
+    # 最初のセグメントは直線なので曲率は0のはず
+    assert np.isclose(path.curvatures[0], 0.0)
+    
+    # どこかに 1/radius に近い曲率があるはず
+    assert np.any(np.isclose(path.curvatures, expected_curvature))
+
+    # 0 と 1/radius 以外の値がないことを確認（丸め誤差を考慮）
+    unique_curvatures = np.unique(np.round(path.curvatures, 5))
+    expected_unique_values = np.round([0.0, expected_curvature], 5)
+    assert np.all(np.isin(unique_curvatures, expected_unique_values))

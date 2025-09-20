@@ -13,7 +13,7 @@ class PipePath:
         self.points = points
         self.radius = radius
         self.step = step
-        self.node_positions = self._create_node_path()
+        self.node_positions, self.curvatures = self._create_node_path()
         self.node_connectivity = self._get_node_connectivity()
         self.bend_direction = self._get_bend_direction()
 
@@ -56,11 +56,12 @@ class PipePath:
         return np.array(arc_points), pt1, pt2
 
     def _create_node_path(self):
-        """完全なノードパス（節点座標）を構築します。"""
+        """完全なノードパス（節点座標）と各要素の曲率を構築します。"""
         if len(self.points) < 2:
-            return np.array(self.points)
+            return np.array(self.points), np.array([])
 
         node_positions = [self.points[0]]
+        curvatures = []
 
         for i in range(1, len(self.points) - 1):
             p_prev = self.points[i - 1]
@@ -81,7 +82,6 @@ class PipePath:
 
             dot_product = np.dot(v1_norm, v2_norm)
 
-            # 角度が180度に近い場合 (U-bend)
             if np.isclose(dot_product, -1.0):
                 axis = np.cross(v1_norm, v2_norm)
                 if np.linalg.norm(axis) < 1e-9:
@@ -94,6 +94,7 @@ class PipePath:
                 pt1 = p_curr
                 seg = np.linspace(node_positions[-1], pt1, int(np.linalg.norm(pt1 - node_positions[-1]) / self.step) + 1)[1:]
                 node_positions.extend(seg)
+                curvatures.extend([0.0] * len(seg))
 
                 center_dir = np.cross(axis, v1_norm)
                 center = p_curr + center_dir * self.radius
@@ -108,23 +109,28 @@ class PipePath:
                     arc_points.append(center + arc_vec)
                 
                 node_positions.extend(arc_points[1:])
+                curvatures.extend([1.0 / self.radius] * (len(arc_points) - 1))
             
-            # 角度が0度に近い場合（直線）
             elif np.isclose(dot_product, 1.0):
                 seg = np.linspace(node_positions[-1], p_curr, int(np.linalg.norm(p_curr - node_positions[-1]) / self.step) + 1)[1:]
                 node_positions.extend(seg)
+                curvatures.extend([0.0] * len(seg))
 
-            # 通常のフィレット
             else:
                 arc, pt1, pt2 = self._fillet_3d(p_prev, p_curr, p_next, self.radius, self.step)
                 seg = np.linspace(node_positions[-1], pt1, int(np.linalg.norm(pt1 - node_positions[-1]) / self.step) + 1)[1:]
                 node_positions.extend(seg)
+                curvatures.extend([0.0] * len(seg))
+                
                 node_positions.extend(arc[1:])
+                curvatures.extend([1.0 / self.radius] * (len(arc) - 1))
+                
                 node_positions[-1] = pt2
 
         seg = np.linspace(node_positions[-1], self.points[-1], int(np.linalg.norm(self.points[-1] - node_positions[-1]) / self.step) + 1)[1:]
         node_positions.extend(seg)
-        return np.array(node_positions)
+        curvatures.extend([0.0] * len(seg))
+        return np.array(node_positions), np.array(curvatures)
 
     def _get_node_connectivity(self):
         """節点接続情報を作成します。"""
