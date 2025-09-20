@@ -2,6 +2,7 @@ import numpy as np
 
 import sdynpy as sdpy
 
+from .materials import get_material_properties
 from .pipe import Pipe
 
 
@@ -11,27 +12,19 @@ class VibrationAnalysis:
 
     Args:
         pipe (Pipe): 解析対象のPipeオブジェクト。
+        material_properties (dict): 材料特性の辞書。
     """
 
-    def __init__(self, pipe):
+    def __init__(self, pipe, material_properties):
         self.pipe = pipe
+        self.material_properties = material_properties
         self.init_system, self.geometry = self._setup_system()
         self.system = self.init_system
 
     def _setup_system(self):
         """sdynpyシステムをセットアップします。"""
-        expected_keys = [
-            'ae', 'jg', 'ei1', 'ei2', 'mass_per_length', 'tmmi_per_length'
-        ]
-        
-        filtered_props = {
-            key: self.pipe.material_properties[key]
-            for key in expected_keys
-            if key in self.pipe.material_properties
-        }
-        
         return sdpy.System.beam_from_arrays(self.pipe.node_positions, self.pipe.node_connectivity,
-                                            self.pipe.bend_direction, filtered_props)
+                                            self.pipe.bend_direction, self.material_properties)
 
     def reset_system(self):
         """システムを初期状態に戻します。"""
