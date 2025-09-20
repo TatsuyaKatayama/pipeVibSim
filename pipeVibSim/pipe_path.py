@@ -93,3 +93,26 @@ class PipePath:
                     bend_dir /= np.linalg.norm(bend_dir)
             bend_direction_1.append(bend_dir)
         return np.array(bend_direction_1)
+
+    def __add__(self, other):
+        """
+        2つのPipePathオブジェクトを結合します。
+        2つ目のPipePathの始点を1つ目の終点にオフセットして結合します。
+        """
+        if not isinstance(other, PipePath):
+            return NotImplemented
+
+        # radiusとstepは最初のPipePathのものを引き継ぐ
+        new_radius = self.radius
+        new_step = self.step
+
+        # 2つ目のPipePathのpointsをオフセット
+        offset = self.points[-1] - other.points[0]
+        offset_other_points = other.points + offset
+
+        # 1つ目のpointsと、オフセットした2つ目のpointsを結合
+        # 結合点で重複しないように、2つ目の始点は除外する
+        new_points = np.vstack((self.points, offset_other_points[1:]))
+
+        # 新しいPipePathオブジェクトを生成して返す
+        return PipePath(new_points, new_radius, new_step)
