@@ -57,14 +57,72 @@ class PipePath:
 
     def _create_node_path(self):
         """完全なノードパス（節点座標）を構築します。"""
+        if len(self.points) < 2:
+            return np.array(self.points)
+
         node_positions = [self.points[0]]
-        for i in range(1, len(self.points)-1):
-            arc, pt1, pt2 = self._fillet_3d(self.points[i-1], self.points[i], self.points[i+1], self.radius, self.step)
-            seg = np.linspace(node_positions[-1], pt1, int(np.linalg.norm(pt1-node_positions[-1])/self.step)+1)[1:]
-            node_positions.extend(seg)
-            node_positions.extend(arc[1:])
-            node_positions[-1] = pt2
-        seg = np.linspace(node_positions[-1], self.points[-1], int(np.linalg.norm(self.points[-1]-node_positions[-1])/self.step)+1)[1:]
+
+        for i in range(1, len(self.points) - 1):
+            p_prev = self.points[i - 1]
+            p_curr = self.points[i]
+            p_next = self.points[i + 1]
+
+            v1 = p_prev - p_curr
+            v2 = p_next - p_curr
+
+            norm_v1 = np.linalg.norm(v1)
+            norm_v2 = np.linalg.norm(v2)
+
+            if norm_v1 < 1e-9 or norm_v2 < 1e-9:
+                continue
+
+            v1_norm = v1 / norm_v1
+            v2_norm = v2 / norm_v2
+
+            dot_product = np.dot(v1_norm, v2_norm)
+
+            # 角度が180度に近い場合 (U-bend)
+            if np.isclose(dot_product, -1.0):
+                axis = np.cross(v1_norm, v2_norm)
+                if np.linalg.norm(axis) < 1e-9:
+                    if abs(v1_norm[0]) < 0.9:
+                        axis = np.cross(v1_norm, np.array([1.0, 0.0, 0.0]))
+                    else:
+                        axis = np.cross(v1_norm, np.array([0.0, 1.0, 0.0]))
+                axis /= np.linalg.norm(axis)
+
+                pt1 = p_curr
+                seg = np.linspace(node_positions[-1], pt1, int(np.linalg.norm(pt1 - node_positions[-1]) / self.step) + 1)[1:]
+                node_positions.extend(seg)
+
+                center_dir = np.cross(axis, v1_norm)
+                center = p_curr + center_dir * self.radius
+
+                n_steps = max(2, int(np.pi * self.radius / self.step))
+                arc_points = []
+                start_vec = p_curr - center
+                for j in range(n_steps + 1):
+                    theta = np.pi * j / n_steps
+                    rot_matrix = self._rotation_matrix(axis, theta)
+                    arc_vec = np.dot(rot_matrix, start_vec)
+                    arc_points.append(center + arc_vec)
+                
+                node_positions.extend(arc_points[1:])
+            
+            # 角度が0度に近い場合（直線）
+            elif np.isclose(dot_product, 1.0):
+                seg = np.linspace(node_positions[-1], p_curr, int(np.linalg.norm(p_curr - node_positions[-1]) / self.step) + 1)[1:]
+                node_positions.extend(seg)
+
+            # 通常のフィレット
+            else:
+                arc, pt1, pt2 = self._fillet_3d(p_prev, p_curr, p_next, self.radius, self.step)
+                seg = np.linspace(node_positions[-1], pt1, int(np.linalg.norm(pt1 - node_positions[-1]) / self.step) + 1)[1:]
+                node_positions.extend(seg)
+                node_positions.extend(arc[1:])
+                node_positions[-1] = pt2
+
+        seg = np.linspace(node_positions[-1], self.points[-1], int(np.linalg.norm(self.points[-1] - node_positions[-1]) / self.step) + 1)[1:]
         node_positions.extend(seg)
         return np.array(node_positions)
 
