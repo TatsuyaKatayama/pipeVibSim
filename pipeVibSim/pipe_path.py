@@ -6,12 +6,23 @@ class PipePath:
 
     Args:
         points (np.ndarray): 配管の経路を定義する3D座標点の配列。
-        radius (float): 配管の曲げ半径。
+        radius (float or np.ndarray): 配管の曲げ半径。スカラーまたは角ごとの半径の配列。
         step (float): 配管の離散化ステップサイズ。
     """
     def __init__(self, points, radius, step):
         self.points = points
-        self.radius = radius
+        
+        num_corners = len(points) - 2
+        if num_corners > 0:
+            if np.isscalar(radius):
+                self.radius = np.full(num_corners, float(radius))
+            else:
+                self.radius = np.asarray(radius)
+                if self.radius.shape != (num_corners,):
+                    raise ValueError(f"The length of the radius array must be equal to the number of corners ({num_corners}).")
+        else:
+            self.radius = np.array([])
+
         self.step = step
         self.node_positions, self.curvatures = self._create_node_path()
         self.node_connectivity = self._get_node_connectivity()
@@ -82,7 +93,17 @@ class PipePath:
 
             dot_product = np.dot(v1_norm, v2_norm)
 
-            if np.isclose(dot_product, -1.0):
+            line_vec_sq_norm = np.sum((p_next - p_prev)**2)
+            is_collinear = False
+            if line_vec_sq_norm > 1e-12:
+                cross_product = np.cross(p_next - p_prev, p_curr - p_prev)
+                dist_sq = np.dot(cross_product, cross_product) / line_vec_sq_norm
+                if dist_sq < 1e-12:
+                    is_collinear = True
+
+            current_radius = self.radius[i-1]
+
+            if np.isclose(dot_product, -1.0) and not is_collinear:
                 axis = np.cross(v1_norm, v2_norm)
                 if np.linalg.norm(axis) < 1e-9:
                     if abs(v1_norm[0]) < 0.9:
@@ -97,9 +118,9 @@ class PipePath:
                 curvatures.extend([0.0] * len(seg))
 
                 center_dir = np.cross(axis, v1_norm)
-                center = p_curr + center_dir * self.radius
+                center = p_curr + center_dir * current_radius
 
-                n_steps = max(2, int(np.pi * self.radius / self.step))
+                n_steps = max(2, int(np.pi * current_radius / self.step))
                 arc_points = []
                 start_vec = p_curr - center
                 for j in range(n_steps + 1):
@@ -109,21 +130,21 @@ class PipePath:
                     arc_points.append(center + arc_vec)
                 
                 node_positions.extend(arc_points[1:])
-                curvatures.extend([1.0 / self.radius] * (len(arc_points) - 1))
+                curvatures.extend([1.0 / current_radius] * (len(arc_points) - 1))
             
-            elif np.isclose(dot_product, 1.0):
+            elif np.isclose(dot_product, 1.0) or is_collinear:
                 seg = np.linspace(node_positions[-1], p_curr, int(np.linalg.norm(p_curr - node_positions[-1]) / self.step) + 1)[1:]
                 node_positions.extend(seg)
                 curvatures.extend([0.0] * len(seg))
 
             else:
-                arc, pt1, pt2 = self._fillet_3d(p_prev, p_curr, p_next, self.radius, self.step)
+                arc, pt1, pt2 = self._fillet_3d(p_prev, p_curr, p_next, current_radius, self.step)
                 seg = np.linspace(node_positions[-1], pt1, int(np.linalg.norm(pt1 - node_positions[-1]) / self.step) + 1)[1:]
                 node_positions.extend(seg)
                 curvatures.extend([0.0] * len(seg))
                 
                 node_positions.extend(arc[1:])
-                curvatures.extend([1.0 / self.radius] * (len(arc) - 1))
+                curvatures.extend([1.0 / current_radius] * (len(arc) - 1))
                 
                 node_positions[-1] = pt2
 
@@ -166,17 +187,23 @@ class PipePath:
         if not isinstance(other, PipePath):
             return NotImplemented
 
-        # radiusとstepは最初のPipePathのものを引き継ぐ
-        new_radius = self.radius
         new_step = self.step
 
-        # 2つ目のPipePathのpointsをオフセット
         offset = self.points[-1] - other.points[0]
         offset_other_points = other.points + offset
 
-        # 1つ目のpointsと、オフセットした2つ目のpointsを結合
-        # 結合点で重複しないように、2つ目の始点は除外する
         new_points = np.vstack((self.points, offset_other_points[1:]))
 
-        # 新しいPipePathオブジェクトを生成して返す
+        self_radii = self.radius
+        other_radii = other.radius
+
+        if len(self_radii) > 0:
+            joint_radius = self_radii[-1]
+        elif len(other_radii) > 0:
+            joint_radius = other_radii[0]
+        else:
+            joint_radius = 0.1
+
+        new_radius = np.concatenate((self_radii, [joint_radius], other_radii))
+
         return PipePath(new_points, new_radius, new_step)
