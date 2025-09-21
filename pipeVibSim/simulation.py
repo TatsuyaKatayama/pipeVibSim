@@ -20,18 +20,41 @@ class VibrationAnalysis:
 
     def _setup_system(self):
         """sdynpyシステムをセットアップします。"""
-        expected_keys = [
-            'ae', 'jg', 'ei1', 'ei2', 'mass_per_length', 'tmmi_per_length'
-        ]
         
-        filtered_props = {
-            key: self.pipe.material_properties[key]
-            for key in expected_keys
-            if key in self.pipe.material_properties
+        # 材料定数を取得
+        E = self.pipe.material_properties['young_modulus']
+        G = E / (2 * (1 + self.pipe.material_properties['poisson_ratio']))
+        rho = self.pipe.material_properties['density']
+        D_o = self.pipe.material_properties['outer_diameter']
+        thickness = self.pipe.material_properties['thickness']
+
+        n_elements = self.pipe.node_connectivity.shape[0]
+        
+        # thicknessがリストかスカラーかによって処理を分ける
+        if isinstance(thickness, (list, np.ndarray)):
+            if len(thickness) != n_elements:
+                raise ValueError("Length of thickness list must match the number of elements.")
+            thickness_arr = np.array(thickness)
+        else: # スカラーの場合
+            thickness_arr = np.full(n_elements, thickness)
+
+        # 要素ごとの断面特性を計算
+        D_i_arr = D_o - 2 * thickness_arr
+        A_arr = np.pi / 4 * (D_o**2 - D_i_arr**2)
+        I_arr = np.pi / 64 * (D_o**4 - D_i_arr**4)
+        J_arr = 2 * I_arr
+
+        props = {
+            'ae': E * A_arr,
+            'jg': G * J_arr,
+            'ei1': E * I_arr,
+            'ei2': E * I_arr,
+            'mass_per_length': rho * A_arr,
+            'tmmi_per_length': rho * J_arr
         }
-        
+
         return sdpy.System.beam_from_arrays(self.pipe.node_positions, self.pipe.node_connectivity,
-                                            self.pipe.bend_direction, filtered_props)
+                                            self.pipe.bend_direction, props)
 
     def reset_system(self):
         """システムを初期状態に戻します。"""
