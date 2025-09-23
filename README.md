@@ -7,6 +7,7 @@
 
 - 仮想的な点群から滑らかな配管の3Dモデル（ノードと要素）を自動生成
 - 材質や断面形状（円管）を簡単に設定
+- 複数の配管セグメントの結合
 - 固有値解析によるモード形状と固有振動数の計算
 - 指定した点における周波数応答（FRF）の計算と可視化
 
@@ -26,6 +27,7 @@ pip install .
 
 ```python
 import numpy as np
+from pipeVibSim.pipe_path import PipePath
 from pipeVibSim.pipe import Pipe
 from pipeVibSim.materials import get_material_properties
 from pipeVibSim.simulation import VibrationAnalysis
@@ -40,22 +42,26 @@ points = np.array([
     [1, 1, 1]
 ], dtype=float) * 0.1
 
-# 配管オブジェクトの作成
-pipe = Pipe(points, radius=0.03, step=0.01)
+# 配管経路オブジェクトの作成
+pipe_path = PipePath(points, radius=0.03, step=0.01)
 
 # 2. 材料特性の設定
+n_elements = pipe_path.node_positions.shape[0] - 1
 material_properties = get_material_properties(
     E=110.0e9,      # ヤング率 (Pa)
     rho=8960.0,     # 密度 (kg/m^3)
     nu=0.34,        # ポアソン比
     D_out=0.01,     # 外径 (m)
     D_in=0.008,     # 内径 (m)
-    n_elements=pipe.node_positions.shape[0] - 1
+    n_elements=n_elements
 )
 
-# 3. 解析の実行
+# 3. 配管システムオブジェクトの作成
+pipe = Pipe(pipe_path, material_properties)
+
+# 4. 解析の実行
 # 解析オブジェクトの作成
-analysis = VibrationAnalysis(pipe, material_properties)
+analysis = VibrationAnalysis(pipe)
 
 # 固有値解析
 shapes = analysis.run_eigensolution(maximum_frequency=4000)
@@ -66,7 +72,7 @@ post.plot_mode_shapes(analysis.geometry, shapes)
 
 # 周波数応答解析
 frequencies = np.linspace(0., 500, 1000)
-frf = analysis.run_frf(frequencies, load_dof_indices=-4, response_dof_indices=-4)
+frf = analysis.run_frf_direct(frequencies, load_dof_indices=[-4], response_dof_indices=[-4])
 
 # FRFのプロット
 post.plot_frf(frf)

@@ -2,7 +2,6 @@ import numpy as np
 
 import sdynpy as sdpy
 
-from .materials import get_material_properties
 from .pipe import Pipe
 
 
@@ -12,19 +11,51 @@ class VibrationAnalysis:
 
     Args:
         pipe (Pipe): 解析対象のPipeオブジェクト。
-        material_properties (dict): 材料特性の辞書。
     """
 
-    def __init__(self, pipe, material_properties):
+    def __init__(self, pipe):
         self.pipe = pipe
-        self.material_properties = material_properties
         self.init_system, self.geometry = self._setup_system()
         self.system = self.init_system
+        self.eigensolution = None
 
     def _setup_system(self):
         """sdynpyシステムをセットアップします。"""
+        
+        # 材料定数を取得
+        E = self.pipe.material_properties['young_modulus']
+        G = E / (2 * (1 + self.pipe.material_properties['poisson_ratio']))
+        rho = self.pipe.material_properties['density']
+        D_o = self.pipe.material_properties['outer_diameter']
+        thickness = self.pipe.material_properties['thickness']
+
+        n_elements = self.pipe.node_connectivity.shape[0]
+        
+        # thicknessがリストかスカラーかによって処理を分ける
+        if isinstance(thickness, (list, np.ndarray)):
+            if len(thickness) != n_elements:
+                raise ValueError("Length of thickness list must match the number of elements.")
+            thickness_arr = np.array(thickness)
+        else: # スカラーの場合
+            thickness_arr = np.full(n_elements, thickness)
+
+        # 要素ごとの断面特性を計算
+        D_i_arr = D_o - 2 * thickness_arr
+        A_arr = np.pi / 4 * (D_o**2 - D_i_arr**2)
+        I_arr = np.pi / 64 * (D_o**4 - D_i_arr**4)
+        J_arr = 2 * I_arr
+
+        props = {
+            'ae': E * A_arr,
+            'jg': G * J_arr,
+            'ei1': E * I_arr,
+            'ei2': E * I_arr,
+            'mass_per_length': rho * A_arr,
+            'tmmi_per_length': rho * J_arr
+        }
+
         return sdpy.System.beam_from_arrays(self.pipe.node_positions, self.pipe.node_connectivity,
-                                            self.pipe.bend_direction, self.material_properties)
+                                            self.pipe.bend_direction, props)
 
     def reset_system(self):
         """システムを初期状態に戻します。"""
@@ -50,7 +81,7 @@ class VibrationAnalysis:
 
     def run_eigensolution(self, maximum_frequency):
         """
-        固有値解析を実行します。
+        固有値解析を実行し、結果をインスタンスに保存します。
 
         Args:
             maximum_frequency (float): 解析する最大周波数。
@@ -58,15 +89,16 @@ class VibrationAnalysis:
         Returns:
             eigensolution: sdynpyの固有値解析結果。
         """
-        return self.system.eigensolution(maximum_frequency=maximum_frequency)
+        self.eigensolution = self.system.eigensolution(maximum_frequency=maximum_frequency)
+        return self.eigensolution
 
-    def run_frf(self,
-                frequencies,
-                load_dof_indices,
-                response_dof_indices=slice(None),
-                displacement_derivative=0):
+    def run_frf_direct(self,
+                       frequencies,
+                       load_dof_indices,
+                       response_dof_indices=slice(None),
+                       displacement_derivative=0):
         """
-        周波数応答解析（FRF）を実行します。
+        周波数応答解析（FRF）を直接法で実行します。
 
         Args:
             frequencies (np.ndarray): 解析する周波数の配列。
@@ -79,6 +111,34 @@ class VibrationAnalysis:
         load_dof = self.system.coordinate[load_dof_indices]
         response_dof = self.system.coordinate[response_dof_indices]
         return self.system.frequency_response(frequencies=frequencies,
+                                              references=load_dof,
+                                              responses=response_dof,
+                                              displacement_derivative=displacement_derivative)
+
+    def run_frf_modal(self,
+                      frequencies,
+                      load_dof_indices,
+                      response_dof_indices=slice(None),
+                      displacement_derivative=0):
+        """
+        周波数応答解析（FRF）をモード重ね合わせ法で実行します。
+        事前に `run_eigensolution` を実行しておく必要があります。
+
+        Args:
+            frequencies (np.ndarray): 解析する周波数の配列。
+            load_dof_indices (int or list): 荷重をかける自由度のインデックス。
+            response_dof_indices (int, list, or slice, optional): 応答を観測する自由度のインデックス。デフォルトは全自由度。
+            displacement_derivative (int, optional): 変位の導関数の次数。デフォルトは0は変位。1は速度、2は加速度。
+        Returns:
+            frf: sdynpyの周波数応答解析結果。
+        """
+        if self.eigensolution is None:
+            raise RuntimeError("モード重ね合わせ法を使用するには、先に `run_eigensolution` を実行してください。")
+
+        load_dof = self.system.coordinate[load_dof_indices]
+        response_dof = self.system.coordinate[response_dof_indices]
+
+        return self.eigensolution.compute_frf(frequencies=frequencies,
                                               references=load_dof,
                                               responses=response_dof,
                                               displacement_derivative=displacement_derivative)
