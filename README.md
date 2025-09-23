@@ -72,7 +72,7 @@ post.plot_mode_shapes(analysis.geometry, shapes)
 
 # 周波数応答解析
 frequencies = np.linspace(0., 500, 1000)
-frf = analysis.run_frf(frequencies, load_dof_indices=-4, response_dof_indices=-4)
+frf = analysis.run_frf_direct(frequencies, load_dof_indices=[-4], response_dof_indices=[-4])
 
 # FRFのプロット
 post.plot_frf(frf)

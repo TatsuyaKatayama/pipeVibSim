@@ -68,3 +68,55 @@ def test_thickness_list_length_mismatch(straight_pipe_path, material_props_base)
     
     with pytest.raises(ValueError, match="Length of thickness list must match the number of elements."):
         VibrationAnalysis(pipe)
+
+@pytest.fixture
+def analysis_setup(straight_pipe_path, material_props_base):
+    """解析オブジェクトと基本的なセットアップを提供するフィクスチャ"""
+    material_props = material_props_base.copy()
+    material_props['thickness'] = 0.01
+    pipe = Pipe(straight_pipe_path, material_props)
+    analysis = VibrationAnalysis(pipe)
+    # 始点を固定
+    constraints = [(pipe.node_positions[0], None)]
+    analysis.substructure_by_coordinate(constraints)
+    return analysis
+
+def test_eigensolution_storage(analysis_setup):
+    """run_eigensolutionが結果をインスタンスに保存することをテスト"""
+    analysis = analysis_setup
+    assert analysis.eigensolution is None
+    shapes = analysis.run_eigensolution(maximum_frequency=1000)
+    assert analysis.eigensolution is not None
+    assert analysis.eigensolution is shapes
+
+def test_frf_modal_without_eigensolution(analysis_setup):
+    """eigensolutionなしでrun_frf_modalを呼ぶとエラーになることをテスト"""
+    analysis = analysis_setup
+    frequencies = np.linspace(1, 100, 100)
+    with pytest.raises(RuntimeError, match="モード重ね合わせ法を使用するには、先に `run_eigensolution` を実行してください。"):
+        analysis.run_frf_modal(frequencies, load_dof_indices=[-1], response_dof_indices=[-1])
+
+def test_frf_methods(analysis_setup):
+    """run_frf_directとrun_frf_modalが実行でき、結果が近いことをテスト"""
+    analysis = analysis_setup
+    analysis.run_eigensolution(maximum_frequency=5000)
+    
+    frequencies = np.linspace(1, 500, 200)
+    load_dof = [-4]
+    resp_dof = [-4]
+
+    # モード法
+    frf_modal = analysis.run_frf_modal(frequencies, load_dof_indices=load_dof, response_dof_indices=resp_dof)
+    
+    # 直接法
+    frf_direct = analysis.run_frf_direct(frequencies, load_dof_indices=load_dof, response_dof_indices=resp_dof)
+
+    assert frf_modal is not None
+    assert frf_direct is not None
+    assert frf_modal.ordinate.shape == frf_direct.ordinate.shape
+
+    # 低周波数域で結果が近いことを確認（許容誤差を大きめに設定）
+    # ピーク周波数付近では差が大きくなる可能性があるため、平均的な差で比較
+    avg_diff = np.mean(np.abs(frf_modal.ordinate - frf_direct.ordinate))
+    avg_mag = np.mean(np.abs(frf_direct.ordinate))
+    assert avg_diff / avg_mag < 0.1 # 平均して10%以下の差異であること

@@ -17,6 +17,7 @@ class VibrationAnalysis:
         self.pipe = pipe
         self.init_system, self.geometry = self._setup_system()
         self.system = self.init_system
+        self.eigensolution = None
 
     def _setup_system(self):
         """sdynpyシステムをセットアップします。"""
@@ -80,7 +81,7 @@ class VibrationAnalysis:
 
     def run_eigensolution(self, maximum_frequency):
         """
-        固有値解析を実行します。
+        固有値解析を実行し、結果をインスタンスに保存します。
 
         Args:
             maximum_frequency (float): 解析する最大周波数。
@@ -88,15 +89,16 @@ class VibrationAnalysis:
         Returns:
             eigensolution: sdynpyの固有値解析結果。
         """
-        return self.system.eigensolution(maximum_frequency=maximum_frequency)
+        self.eigensolution = self.system.eigensolution(maximum_frequency=maximum_frequency)
+        return self.eigensolution
 
-    def run_frf(self,
-                frequencies,
-                load_dof_indices,
-                response_dof_indices=slice(None),
-                displacement_derivative=0):
+    def run_frf_direct(self,
+                       frequencies,
+                       load_dof_indices,
+                       response_dof_indices=slice(None),
+                       displacement_derivative=0):
         """
-        周波数応答解析（FRF）を実行します。
+        周波数応答解析（FRF）を直接法で実行します。
 
         Args:
             frequencies (np.ndarray): 解析する周波数の配列。
@@ -109,6 +111,34 @@ class VibrationAnalysis:
         load_dof = self.system.coordinate[load_dof_indices]
         response_dof = self.system.coordinate[response_dof_indices]
         return self.system.frequency_response(frequencies=frequencies,
+                                              references=load_dof,
+                                              responses=response_dof,
+                                              displacement_derivative=displacement_derivative)
+
+    def run_frf_modal(self,
+                      frequencies,
+                      load_dof_indices,
+                      response_dof_indices=slice(None),
+                      displacement_derivative=0):
+        """
+        周波数応答解析（FRF）をモード重ね合わせ法で実行します。
+        事前に `run_eigensolution` を実行しておく必要があります。
+
+        Args:
+            frequencies (np.ndarray): 解析する周波数の配列。
+            load_dof_indices (int or list): 荷重をかける自由度のインデックス。
+            response_dof_indices (int, list, or slice, optional): 応答を観測する自由度のインデックス。デフォルトは全自由度。
+            displacement_derivative (int, optional): 変位の導関数の次数。デフォルトは0は変位。1は速度、2は加速度。
+        Returns:
+            frf: sdynpyの周波数応答解析結果。
+        """
+        if self.eigensolution is None:
+            raise RuntimeError("モード重ね合わせ法を使用するには、先に `run_eigensolution` を実行してください。")
+
+        load_dof = self.system.coordinate[load_dof_indices]
+        response_dof = self.system.coordinate[response_dof_indices]
+
+        return self.eigensolution.compute_frf(frequencies=frequencies,
                                               references=load_dof,
                                               responses=response_dof,
                                               displacement_derivative=displacement_derivative)

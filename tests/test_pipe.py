@@ -34,7 +34,7 @@ def test_pipe_single_segment(sample_pipe_segment1):
     assert pipe is not None
     np.testing.assert_array_equal(pipe.node_positions, pipe_path.node_positions)
     np.testing.assert_array_equal(pipe.node_connectivity, pipe_path.node_connectivity)
-    assert pipe.material_properties['E'] == material_properties['E']
+    assert pipe.material_properties['young_modulus'] == material_properties['young_modulus']
 
 def test_pipe_add_segment(sample_pipe_segment1, sample_pipe_segment2):
     """add_pipe_segmentでセグメントが追加され、正しく結合されるかテスト"""
@@ -61,6 +61,6 @@ def test_pipe_add_segment(sample_pipe_segment1, sample_pipe_segment2):
     assert pipe.node_connectivity[n_elements1, 0] == expected_connectivity_start_node
 
     # 材料特性が結合されているか確認
-    assert len(pipe.material_properties['E']) == n_elements1 + n_elements2
-    assert pipe.material_properties['E'][0] == material_properties1['E']
-    assert pipe.material_properties['E'][-1] == material_properties2['E']
+    assert len(pipe.material_properties['young_modulus']) == n_elements1 + n_elements2
+    assert pipe.material_properties['young_modulus'][0] == material_properties1['young_modulus']
+    assert pipe.material_properties['young_modulus'][-1] == material_properties2['young_modulus']
